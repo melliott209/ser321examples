@@ -25,6 +25,7 @@ import java.util.Random;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.nio.charset.Charset;
+import org.json.*;
 
 class WebServer {
   public static void main(String args[]) {
@@ -252,18 +253,53 @@ class WebServer {
           //     "/repos/OWNERNAME/REPONAME/contributors"
 
           Map<String, String> query_pairs = new LinkedHashMap<String, String>();
-          query_pairs = splitQuery(request.replace("github?", ""));
+		  try {
+			  query_pairs = splitQuery(request.replace("github?", ""));
+		  } catch (IndexOutOfBoundsException e) {
+			  builder.append("HTTP/1.1 400 Bad Request\n");
+			  builder.append("Content-Type: text/html; charset=utf-8\n");
+			  builder.append("\n");
+			  builder.append("Parameter 'query' is required.");
+			  return builder.toString().getBytes();
+		  }
           String json = fetchURL("https://api.github.com/" + query_pairs.get("query"));
-          System.out.println(json);
-
-          builder.append("HTTP/1.1 200 OK\n");
-          builder.append("Content-Type: text/html; charset=utf-8\n");
-          builder.append("\n");
-          builder.append("Check the todos mentioned in the Java source file");
-          // TODO: Parse the JSON returned by your fetch and create an appropriate
-          // response based on what the assignment document asks for
-
-        } else {
+		  Object obj = null;
+		  try {
+			  obj = new JSONTokener(json).nextValue();
+		  } catch(JSONException e) {
+			  builder.append("HTTP/1.1 400 Bad Request\n");
+			  builder.append("Content-Type: text/html; charset=utf-8\n");
+			  builder.append("\n");
+			  builder.append("Badly formed query. Format is 'query=users/<USERNAME>/repos'");
+			  return builder.toString().getBytes();
+		  }
+		  if (obj instanceof JSONObject) {
+			  if(((JSONObject)obj).has("message") && ((JSONObject)obj).getString("message").equals("Not Found")) {
+				  builder.append("HTTP/1.1 400 Bad Request\n");
+				  builder.append("Content-Type: text/html; charset=utf-8\n");
+				  builder.append("\n");
+				  builder.append("Badly formed query. Format is 'query=users/<USERNAME>/repos'");
+				  return builder.toString().getBytes();
+			  }
+		  } else if (obj instanceof JSONArray) {
+			  builder.append("HTTP/1.1 200 OK\n");
+			  builder.append("Content-Type: text/html; charset=utf-8\n");
+			  builder.append("\n");
+			  for(int i = 0; i < ((JSONArray)obj).length(); i++) {
+				  JSONObject o = ((JSONArray)obj).getJSONObject(i);
+				  builder.append("ID: " + o.getInt("id") + "\n");
+				  builder.append("NAME: " + o.getString("full_name") + "\n");
+				  builder.append("OWNER: " + o.getJSONObject("owner").getString("login") + "\n");
+				  builder.append("\n");
+			  }
+		  } else {
+			  builder.append("HTTP/1.1 400 Bad Request\n");
+			  builder.append("Content-Type: text/html; charset=utf-8\n");
+			  builder.append("\n");
+			  builder.append("Badly formed query. Format is 'query=users/<USERNAME>/repos'");
+			  return builder.toString().getBytes();
+		  }
+		} else {
           // if the request is not recognized at all
 
           builder.append("HTTP/1.1 400 Bad Request\n");
