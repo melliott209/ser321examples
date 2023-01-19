@@ -240,9 +240,6 @@ class WebServer {
 			  builder.append("\n");
 			  builder.append("Result is: " + result);
 
-          // TODO: Include error handling here with a correct error code and
-          // a response that makes sense
-
         } else if (request.contains("github?")) {
           // pulls the query from the request and runs it with GitHub's REST API
           // check out https://docs.github.com/rest/reference/
@@ -299,6 +296,61 @@ class WebServer {
 			  builder.append("Badly formed query. Format is 'query=users/<USERNAME>/repos'");
 			  return builder.toString().getBytes();
 		  }
+		  
+		} else if (request.contains("caesar?")) {
+			// Caesar cipher
+			// Parameters:
+			// string - string to be encrypted (required)
+			// shift - number to shift each character by (required)
+          Map<String, String> query_pairs = new LinkedHashMap<String, String>();
+          // extract path parameters
+		  try {
+			  query_pairs = splitQuery(request.replace("caesar?", ""));
+		  } catch (IndexOutOfBoundsException e) {
+            builder.append("HTTP/1.1 400 Bad Request\n");
+            builder.append("Content-Type: text/html; charset=utr-8\n");
+            builder.append("\n");
+            builder.append("Badly formed request: format 'caesar?string=<STRING>&shift=<INT>'");
+			return builder.toString().getBytes();
+		  }
+		  String original = "";
+		  int shift = 0;
+		  original = query_pairs.get("string");
+		  if (original == null) {
+			builder.append("HTTP/1.1 422 Unprocessable Entity\n"); builder.append("Content-Type: text/html; charset=utr-8\n");
+            builder.append("Content-Type: text/html; charset=utr-8\n");
+			builder.append("\n");
+			builder.append("Invalid request: parameter 'string' is required.");
+			return builder.toString().getBytes();
+		  }
+		  try {
+			  shift = Integer.parseInt(query_pairs.get("shift"));
+		  } catch (NumberFormatException e) {
+			builder.append("HTTP/1.1 422 Unprocessable Entity\n"); builder.append("Content-Type: text/html; charset=utr-8\n");
+            builder.append("Content-Type: text/html; charset=utr-8\n");
+			builder.append("\n");
+			builder.append("Invalid request: parameter 'shift' is required and must be an integer.");
+			return builder.toString().getBytes();
+		  }
+		  StringBuilder encrypted = new StringBuilder(original);
+		  for (int i = 0; i < original.length(); i++) {
+			  char c = original.charAt(i);
+			  if (Character.isLetter(c)) {
+				  if (Character.isLowerCase(c)) {
+					  encrypted.setCharAt(i, (char)((c + shift - 'a') % 26 + 'a'));
+				  } else {
+					  encrypted.setCharAt(i, (char)((c + shift - 'A') % 26 + 'A'));
+				  }
+			  } else {
+				  encrypted.setCharAt(i, c);
+			  }
+		  }
+		  builder.append("HTTP/1.1 200 OK\n");
+		  builder.append("Content-Type: text/html; charset=utf-8\n");
+		  builder.append("\n");
+		  builder.append("<p>Original String: " + original + "</p>\n");
+		  builder.append("<p>Encrypted String: " + encrypted.toString() + "</p>\n");
+
 		} else {
           // if the request is not recognized at all
 
