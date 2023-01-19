@@ -299,11 +299,7 @@ class WebServer {
 		  
 		} else if (request.contains("caesar?")) {
 			// Caesar cipher
-			// Parameters:
-			// string - string to be encrypted (required)
-			// shift - number to shift each character by (required)
           Map<String, String> query_pairs = new LinkedHashMap<String, String>();
-          // extract path parameters
 		  try {
 			  query_pairs = splitQuery(request.replace("caesar?", ""));
 		  } catch (IndexOutOfBoundsException e) {
@@ -350,6 +346,75 @@ class WebServer {
 		  builder.append("\n");
 		  builder.append("<p>Original String: " + original + "</p>\n");
 		  builder.append("<p>Encrypted String: " + encrypted.toString() + "</p>\n");
+		  
+		} else if (request.contains("userProjectsByLang?")) {
+          Map<String, String> query_pairs = new LinkedHashMap<String, String>();
+		  try {
+			  query_pairs = splitQuery(request.replace("userProjectsByLang?", ""));
+		  } catch (IndexOutOfBoundsException e) {
+            builder.append("HTTP/1.1 400 Bad Request\n");
+            builder.append("Content-Type: text/html; charset=utr-8\n");
+            builder.append("\n");
+            builder.append("Badly formed request: format 'userProjectsByLang?user=<USER>&lang=<LANG>'");
+			return builder.toString().getBytes();
+		  }
+		  String user = query_pairs.get("user");
+		  String lang = query_pairs.get("lang");
+		  if (user == null) {
+            builder.append("HTTP/1.1 422 Unprocessable Entity\n");
+            builder.append("Content-Type: text/html; charset=utr-8\n");
+            builder.append("\n");
+            builder.append("Missing query parameter 'user'");
+			return builder.toString().getBytes();
+		  }
+		  if (lang == null) {
+            builder.append("HTTP/1.1 422 Unprocessable Entity\n");
+            builder.append("Content-Type: text/html; charset=utr-8\n");
+            builder.append("\n");
+            builder.append("Missing query parameter 'lang'");
+			return builder.toString().getBytes();
+		  }
+          String json = fetchURL("https://api.github.com/users/" + user + "/repos");
+		  Object obj = null;
+		  try {
+			  obj = new JSONTokener(json).nextValue();
+		  } catch(JSONException e) {
+			  builder.append("HTTP/1.1 400 Bad Request\n");
+			  builder.append("Content-Type: text/html; charset=utf-8\n");
+			  builder.append("\n");
+			  builder.append("Badly formed query. Format is 'userProjectsByLang?user=<USER>&lang=<LANG>'");
+			  return builder.toString().getBytes();
+		  }
+		  if (obj instanceof JSONObject) {
+			  if(((JSONObject)obj).has("message") && ((JSONObject)obj).getString("message").equals("Not Found")) {
+				  builder.append("HTTP/1.1 422 Unprocessable Entity\n");
+				  builder.append("Content-Type: text/html; charset=utf-8\n");
+				  builder.append("\n");
+				  builder.append("User not found.");
+				  return builder.toString().getBytes();
+			  }
+		  } else if (obj instanceof JSONArray) {
+			  builder.append("HTTP/1.1 200 OK\n");
+			  builder.append("Content-Type: text/html; charset=utf-8\n");
+			  builder.append("\n");
+			  builder.append("<h3>Projects by " + user + " written in " + lang + ":</h3>");
+			  for(int i = 0; i < ((JSONArray)obj).length(); i++) {
+				  JSONObject o = ((JSONArray)obj).getJSONObject(i);
+				  if (o.get("language").toString().toLowerCase().equals(lang.toLowerCase())) {
+				  builder.append("<p>\n");
+				  builder.append("ID: " + o.getInt("id") + "\n");
+				  builder.append("NAME: " + o.getString("full_name") + "\n");
+				  builder.append("</p>\n");
+				  }
+			  }
+		  } else {
+			  builder.append("HTTP/1.1 400 Bad Request\n");
+			  builder.append("Content-Type: text/html; charset=utf-8\n");
+			  builder.append("\n");
+			  builder.append("Badly formed query. Format is 'query=users/<USERNAME>/repos'");
+			  return builder.toString().getBytes();
+		  }
+
 
 		} else {
           // if the request is not recognized at all
